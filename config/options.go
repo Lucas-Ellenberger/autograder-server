@@ -10,7 +10,7 @@ var (
 
     COURSES_ROOT = MustNewStringOption("courses.rootdir", "_courses", "The default places to look for courses.");
 
-    WORK_DIR = MustNewStringOption("dirs.work", filepath.Join(os.TempDir(), "_autograder"), "The root dir roe autograder output and artifacts.");
+    WORK_DIR = MustNewStringOption("dirs.work", filepath.Join(os.TempDir(), "_autograder"), "The root dir for autograder output and artifacts.");
 
     DEBUG = MustNewBoolOption("debug", false, "Enable general debugging.");
 
@@ -37,4 +37,7 @@ var (
     TESTING_MODE = MustNewBoolOption("testing", false, "Assume tests are being run, which may alter some operations.");
 
     WEB_PORT = MustNewIntOption("web.port", 8080, "The port for the web interface to serve on.");
+
+    DB_SQLITE_PATH = MustNewStringOption("db.sqlite.path", "autograder.sqlite3", "The path for the SQLite3 database. If relative, it will be relative to WORK_DIR.");
+    DB_PG_URI = MustNewStringOption("db.pg.uri", "", "Connection string to connect to a Postgres Databse. Empty if not using Postgres.");
 )
