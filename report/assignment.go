@@ -39,6 +39,18 @@ type ScoringReportQuestionStats struct {
     StdDevString string `json:"-"`
 }
 
+type UserSubmissionStats struct {
+    UserEmail string `json:"user-email"`
+    NumberOfSubmissions int64 `json:"number-of-submissions"`
+    FirstSubmission common.Timestamp `json:"first-submission"`
+    LatestSubmission common.Timestamp `json:"latest-submission"`
+}
+
+type AssignmentSubmissionStats struct {
+    AssignmentName string `json:"assignment-name"`
+    Users []*UserSubmissionStats `json:"users"`
+}
+
 const DEFAULT_VALUE float64 = -1.0;
 
 func GetAssignmentScoringReport(assignment *model.Assignment) (*AssignmentScoringReport, error) {
@@ -142,4 +154,80 @@ func fetchScores(assignment *model.Assignment) ([]string, map[string][]float64, 
     }
 
     return questionNames, scores, lastSubmissionTime, nil;
+}
+
+func GetScoringReportSubmissionStats(assignment *model.Assignment) (*AssignmentSubmissionStats, error) {
+    submissionStats, err := fetchSubmissionStats(assignment);    
+    if (err != nil) {
+        return nil, err;
+    }
+
+    report := AssignmentSubmissionStats{
+        AssignmentName: assignment.GetName(),
+        Users: submissionStats,
+    };
+
+    return &report, nil;
+}
+
+func fetchSubmissionStats(assignment *model.Assignment) ([]*UserSubmissionStats, error) {
+    // Get all users for this course.
+    users, err := db.GetUsers(assignment.GetCourse());
+    if (err != nil) {
+        return nil, fmt.Errorf("Failed to get student emails for course: '%w'.", err);
+    }
+
+    submissionStats := make([]*UserSubmissionStats, 0);
+    var numSubmissions int64;
+
+    // Loop over every user in the course.
+    for email, user := range users {
+        // Skip users that are not students.
+        if (user.Role != model.RoleStudent) {
+            continue;
+        }
+
+        results, err := db.GetSubmissionAttempts(assignment, email);
+        if (err != nil) {
+            return nil, fmt.Errorf("Failed to get recent submission results: '%w'.", err);
+        }
+
+        numSubmissions = 0;
+        firstTime := time.Time{};
+        lastTime := time.Time{};
+
+        // Loop over every submission for the current user.
+        for _, result := range results {
+            if (result == nil) {
+                continue;
+            }
+
+            resultTime, err := result.Info.GradingStartTime.Time();
+            if (err != nil) {
+                return nil, fmt.Errorf("Failed to get submission result time: '%w'.", err);
+            }
+
+            if (resultTime.Before(firstTime)) {
+                firstTime = resultTime;
+            }
+
+            if (resultTime.After(lastTime)) {
+                lastTime = resultTime;
+            }
+
+            numSubmissions += 1;
+        }
+
+        // Set the corresponding values for the current user.
+        stats := UserSubmissionStats{
+            UserEmail: email,
+            NumberOfSubmissions: numSubmissions,
+            FirstSubmission: common.TimestampFromTime(firstTime),
+            LatestSubmission: common.TimestampFromTime(lastTime),
+        };
+
+        submissionStats = append(submissionStats, &stats);
+    }
+
+    return submissionStats, nil;
 }
