@@ -108,6 +108,14 @@ var expected *CourseScoringReport = &CourseScoringReport{
                     StdDevString: "NaN",
                 },
             },
+            Users: []*UserSubmissionStats {
+		        &UserSubmissionStats{	
+                    UserEmail: "student@test.com",
+                    NumberOfSubmissions: 3,
+                    FirstSubmission: common.MustTimestampFromString("0001-01-01T00:00:00Z"),
+                    LatestSubmission: common.MustTimestampFromString("2023-10-15T21:44:33Z"),
+                },
+            },
         },
     },
 };

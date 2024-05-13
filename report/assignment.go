@@ -21,6 +21,7 @@ type AssignmentScoringReport struct {
     NumberOfSubmissions int `json:"number-of-submissions"`
     LatestSubmission common.Timestamp `json:"latest-submission"`
     Questions []*ScoringReportQuestionStats `json:"questions"`
+    Users []*UserSubmissionStats `json:"users"`
 }
 
 type ScoringReportQuestionStats struct {
@@ -44,11 +45,6 @@ type UserSubmissionStats struct {
     NumberOfSubmissions int64 `json:"number-of-submissions"`
     FirstSubmission common.Timestamp `json:"first-submission"`
     LatestSubmission common.Timestamp `json:"latest-submission"`
-}
-
-type AssignmentSubmissionStats struct {
-    AssignmentName string `json:"assignment-name"`
-    Users []*UserSubmissionStats `json:"users"`
 }
 
 const DEFAULT_VALUE float64 = -1.0;
@@ -86,11 +82,17 @@ func GetAssignmentScoringReport(assignment *model.Assignment) (*AssignmentScorin
         numSubmissions = len(scores[questionName]);
     }
 
+    submissionStats, err := GetScoringReportSubmissionStats(assignment);    
+    if (err != nil) {
+        return nil, err;
+    }
+
     report := AssignmentScoringReport{
         AssignmentName: assignment.GetName(),
         NumberOfSubmissions: numSubmissions,
         LatestSubmission: common.TimestampFromTime(lastSubmissionTime),
         Questions: questions,
+        Users: submissionStats,
     };
 
     return &report, nil;
@@ -156,21 +158,7 @@ func fetchScores(assignment *model.Assignment) ([]string, map[string][]float64, 
     return questionNames, scores, lastSubmissionTime, nil;
 }
 
-func GetScoringReportSubmissionStats(assignment *model.Assignment) (*AssignmentSubmissionStats, error) {
-    submissionStats, err := fetchSubmissionStats(assignment);    
-    if (err != nil) {
-        return nil, err;
-    }
-
-    report := AssignmentSubmissionStats{
-        AssignmentName: assignment.GetName(),
-        Users: submissionStats,
-    };
-
-    return &report, nil;
-}
-
-func fetchSubmissionStats(assignment *model.Assignment) ([]*UserSubmissionStats, error) {
+func GetScoringReportSubmissionStats(assignment *model.Assignment) ([]*UserSubmissionStats, error) {
     // Get all users for this course.
     users, err := db.GetUsers(assignment.GetCourse());
     if (err != nil) {
