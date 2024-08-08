@@ -15,7 +15,7 @@ function fetch_repo() {
         mkdir -p "$(dirname "${TEMP_DIR}")"
         git clone "${REPO_URL}" "${TEMP_DIR}"
         if [[ $? -ne 0 ]] ; then
-            echo "ERROR: Failed to clone repo."
+            echo "ERROR: Failed to clone repo: '${REPO_URL}'."
             return 1
         fi
     fi
