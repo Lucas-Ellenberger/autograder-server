@@ -2,8 +2,7 @@
 
 # Install a matching version of the Python interface.
 
-# readonly TEMP_DIR='/tmp/__autograder__/autograder-py'
-readonly TEMP_DIR='/tmp/__autograder__/real-def-not-autograder-py'
+readonly TEMP_DIR='/tmp/__autograder__/autograder-py'
 
 function fetch_repo() {
     local branch=$1
