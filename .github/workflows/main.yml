@@ -33,26 +33,25 @@ jobs:
           path: ${{ env.pythonLocation }}
           key: ${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('testdata/requirements.txt') }}
 
-      - name: Determine Target Repo Owner
-        id: repo
+      - name: Determine Target Repo and Branch
+        id: determine-repo-and-branch
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "TARGET_REPO_OWNER=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
-          elif [ "${{ github.event_name }}" == "push" ]; then
-            echo "TARGET_REPO_OWNER=${{ github.ref_name }}" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "BRANCH_NAME=${{ github.ref_name }}"
+            echo "REPO_NAME=${{ github.repository_owner }}"
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "BRANCH_NAME=${{ github.event.pull_request.head.ref }}"
+            echo "REPO_NAME=${{ github.event.pull_request.head.repo.owner }}"
           else
-            echo "TARGET_REPO_OWNER=edulinq" >> $GITHUB_ENV
+            echo "BRANCH_NAME=main"
+            echo "REPO_NAME=edulinq"
           fi
-
-      - name: Determine Target Branch
-        id: branch
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            echo "TARGET_BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
-          elif [ "${{ github.event_name }}" == "push" ]; then
-            echo "TARGET_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          if [[ "$BRANCH_NAME" == *"API/"* ]]
+            echo "TARGET_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
+            echo "TARGET_REPO=$REPO_NAME" >> $GITHUB_ENV
           else
             echo "TARGET_BRANCH=main" >> $GITHUB_ENV
+            echo "TARGET_REPO=edulinq" >> $GITHUB_ENV
           fi
 
       - name: Install Python Interface
