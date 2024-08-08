@@ -33,8 +33,16 @@ jobs:
           path: ${{ env.pythonLocation }}
           key: ${{ runner.os }}-${{ env.pythonLocation }}-${{ hashFiles('testdata/requirements.txt') }}
 
+      - name: Determine Target Repo Owner
+        id: repo
+        run: echo "TARGET_REPO_OWNER=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+
+      - name: Determine Target Branch
+        id: repo
+        run: echo "TARGET_BRANCH=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+
       - name: Install Python Interface
-        run: ./.ci/install_py_interface.sh 'main'
+        run: ./.ci/install_py_interface.sh ${{ env.TARGET_REPO_OWNER || 'edulinq' }} ${{ env.TARGET_BRANCH || 'main' }}
 
       - name: Build
         run: ./scripts/build.sh

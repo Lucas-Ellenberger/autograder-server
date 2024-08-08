@@ -2,8 +2,8 @@
 
 # Install a matching version of the Python interface.
 
-readonly TEMP_DIR='/tmp/__autograder__/autograder-py'
-readonly REPO_URL='https://github.com/edulinq/autograder-py.git'
+# readonly TEMP_DIR='/tmp/__autograder__/autograder-py'
+readonly TEMP_DIR='/tmp/__autograder__/real-def-not-autograder-py'
 
 function fetch_repo() {
     local branch=$1
@@ -48,14 +48,17 @@ function install_interface() {
 }
 
 function main() {
-    if [[ $# -gt 1 ]] ; then
-        echo "USAGE: $0 [branch]"
+    if [[ $# -lt 1 || $# -gt 2 ]] ; then
+        echo "USAGE: $0 repo_owner [branch]"
         exit 1
     fi
 
+    local repo_owner=$1
+    readonly REPO_URL="https://github.com/${repo_owner}/autograder-py.git"
+
     local branch=$(git branch --show-current)
-    if [[ $# -eq 1 ]] ; then
-        branch=$1
+    if [[ $# -eq 2 ]] ; then
+        branch=$2
     fi
 
     trap exit SIGINT
