@@ -49,10 +49,10 @@ jobs:
 
           if [[ "$BRANCH_NAME" == *"API/"* ]]; then
             echo "TARGET_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
-            echo "TARGET_REPO=$REPO_NAME" >> $GITHUB_ENV
+            echo "TARGET_REPO_OWNER=$REPO_NAME" >> $GITHUB_ENV
           else
             echo "TARGET_BRANCH=main" >> $GITHUB_ENV
-            echo "TARGET_REPO=edulinq" >> $GITHUB_ENV
+            echo "TARGET_REPO_OWNER=edulinq" >> $GITHUB_ENV
           fi
 
       - name: Install Python Interface
