@@ -46,6 +46,7 @@ jobs:
             echo "BRANCH_NAME=main"
             echo "REPO_NAME=edulinq"
           fi
+
           if [[ "$BRANCH_NAME" == *"API/"* ]]; then
             echo "TARGET_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
             echo "TARGET_REPO=$REPO_NAME" >> $GITHUB_ENV
