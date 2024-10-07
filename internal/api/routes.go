@@ -29,5 +29,7 @@ func GetRoutes() *[]*core.Route {
 	routes = append(routes, *(logs.GetRoutes())...)
 	routes = append(routes, *(users.GetRoutes())...)
 
+	routes = append(routes, core.NewAPIRoute(core.NewEndpoint(`describe`), HandleDescribe))
+
 	return &routes
 }

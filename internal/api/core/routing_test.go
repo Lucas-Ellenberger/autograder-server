@@ -28,7 +28,7 @@ func TestAPIPanic(test *testing.T) {
 
 	response := SendTestAPIRequest(test, endpoint, nil)
 	if response.Locator != "-001" {
-		test.Fatalf("Response does not have panic locator of '-501', actual locator: '%s'.", response.Locator)
+		test.Fatalf("Response does not have panic locator of '-001', actual locator: '%s'.", response.Locator)
 	}
 }
 
