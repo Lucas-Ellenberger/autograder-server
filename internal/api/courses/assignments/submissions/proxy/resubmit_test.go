@@ -16,9 +16,6 @@ import (
 func TestProxyResubmit(test *testing.T) {
 	docker.EnsureOrSkipForTest(test)
 
-	db.ResetForTesting()
-	defer db.ResetForTesting()
-
 	// Note that computation of these paths is deferred until test time.
 	studentGradingResults := map[string]*model.GradingResult{
 		"1697406256": model.MustLoadGradingResult(getTestSubmissionResultPath("1697406256")),
@@ -61,6 +58,16 @@ func TestProxyResubmit(test *testing.T) {
 		{"course-student@test.edulinq.org", "course-admin", "course101::hw0::student@test.edulinq.org::1697406265", getTestProxyTime(), true, true, false},
 		{"course-student@test.edulinq.org", "course-admin", "course101::hw0::student@test.edulinq.org::1697406272", getTestProxyTime(), true, true, false},
 
+		// No ID (most recent), nil proxy time.
+		{"course-student@test.edulinq.org", "course-admin", "", nil, true, true, false},
+		{"course-student@test.edulinq.org", "course-admin", "", nil, true, true, false},
+		{"course-student@test.edulinq.org", "course-admin", "", nil, true, true, false},
+
+		// No ID (most recent), explicit proxy time.
+		{"course-student@test.edulinq.org", "course-admin", "", getTestProxyTime(), true, true, false},
+		{"course-student@test.edulinq.org", "course-admin", "", getTestProxyTime(), true, true, false},
+		{"course-student@test.edulinq.org", "course-admin", "", getTestProxyTime(), true, true, false},
+
 		// Invalid proxy resubmissions.
 		// Unknown proxy emails.
 		{"zzz@test.edulinq.org", "course-admin", "", nil, false, false, false},
@@ -76,6 +83,9 @@ func TestProxyResubmit(test *testing.T) {
 	}
 
 	for i, testCase := range testCases {
+		db.ResetForTesting()
+		defer db.ResetForTesting()
+
 		fields := map[string]any{
 			"course-id":         assignment.GetCourse().GetID(),
 			"assignment-id":     assignment.GetID(),
@@ -146,6 +156,11 @@ func TestProxyResubmit(test *testing.T) {
 		if responseContent.Message != "" {
 			test.Errorf("Case %d: Response has a reject reason when it should not: '%v'.", i, responseContent)
 			continue
+		}
+
+		// A nil target submission targets the most recent submission.
+		if testCase.targetSubmission == "" {
+			testCase.targetSubmission = "1697406272"
 		}
 
 		expectedGradingResult := studentGradingResults[testCase.targetSubmission]
