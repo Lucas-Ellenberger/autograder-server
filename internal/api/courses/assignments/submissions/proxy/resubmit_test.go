@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/edulinq/autograder/internal/api/core"
-	"github.com/edulinq/autograder/internal/config"
 	"github.com/edulinq/autograder/internal/db"
 	"github.com/edulinq/autograder/internal/grader"
 	"github.com/edulinq/autograder/internal/model"
