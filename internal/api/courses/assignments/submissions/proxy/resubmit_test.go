@@ -17,10 +17,6 @@ func TestProxyResubmit(test *testing.T) {
 	db.ResetForTesting()
 	defer db.ResetForTesting()
 
-	// Disable testing mode to check for rejection.
-	config.UNIT_TESTING_MODE.Set(false)
-	defer config.UNIT_TESTING_MODE.Set(true)
-
 	// Note that computation of these paths is deferred until test time.
 	studentGradingResults := map[string]*model.GradingResult{
 		"1697406256": model.MustLoadGradingResult(getTestSubmissionResultPath("1697406256")),
