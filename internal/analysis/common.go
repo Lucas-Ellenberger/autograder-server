@@ -16,7 +16,7 @@ import (
 )
 
 type AnalysisOptions struct {
-	JobOptions *jobmanager.JobOptions `json:"job-options"`
+	jobmanager.JobOptions
 
 	// The raw submission specifications to analyze.
 	RawSubmissionSpecs []string `json:"submissions"`
