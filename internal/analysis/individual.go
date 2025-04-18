@@ -45,7 +45,7 @@ func IndividualAnalysis(options AnalysisOptions) ([]*model.IndividualAnalysis, i
 	job := jobmanager.Job[string, *model.IndividualAnalysis]{
 		JobOptions:        options.JobOptions,
 		WorkItems:         fullSubmissionIDs,
-		RetrieveFunc:      getCachedIndividualResultsInternal,
+		RetrieveFunc:      getCachedIndividualResults,
 		RemoveStorageFunc: db.RemoveIndividualAnalysis,
 		WorkFunc: func(fullSubmissionID string) (*model.IndividualAnalysis, int64, error) {
 			return runSingleIndividualAnalysis(options, fullSubmissionID)
@@ -62,7 +62,7 @@ func IndividualAnalysis(options AnalysisOptions) ([]*model.IndividualAnalysis, i
 	return output.ResultItems, len(output.RemainingItems), nil
 }
 
-func getCachedIndividualResultsInternal(fullSubmissionIDs []string) ([]*model.IndividualAnalysis, []string, error) {
+func getCachedIndividualResults(fullSubmissionIDs []string) ([]*model.IndividualAnalysis, []string, error) {
 	// Get any already done analysis results from the DB.
 	dbResults, err := db.GetIndividualAnalysis(fullSubmissionIDs)
 	if err != nil {

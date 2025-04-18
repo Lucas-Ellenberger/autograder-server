@@ -78,7 +78,7 @@ func PairwiseAnalysis(options AnalysisOptions) ([]*model.PairwiseAnalysis, int, 
 	job := jobmanager.Job[model.PairwiseKey, *model.PairwiseAnalysis]{
 		JobOptions:        options.JobOptions,
 		WorkItems:         allKeys,
-		RetrieveFunc:      getCachedPairwiseResultsInternal,
+		RetrieveFunc:      getCachedPairwiseResults,
 		RemoveStorageFunc: db.RemovePairwiseAnalysis,
 		WorkFunc: func(key model.PairwiseKey) (*model.PairwiseAnalysis, int64, error) {
 			return runSinglePairwiseAnalysis(options, key, templateFileStore)
@@ -114,7 +114,7 @@ func createPairwiseKeys(fullSubmissionIDs []string) []model.PairwiseKey {
 	return allKeys
 }
 
-func getCachedPairwiseResultsInternal(allKeys []model.PairwiseKey) ([]*model.PairwiseAnalysis, []model.PairwiseKey, error) {
+func getCachedPairwiseResults(allKeys []model.PairwiseKey) ([]*model.PairwiseAnalysis, []model.PairwiseKey, error) {
 	// Get any already done analysis results from the DB.
 	dbResults, err := db.GetPairwiseAnalysis(allKeys)
 	if err != nil {

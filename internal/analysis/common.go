@@ -18,6 +18,9 @@ import (
 type AnalysisOptions struct {
 	jobmanager.JobOptions
 
+	// Don't save anything.
+	DryRun bool `json:"dry-run"`
+
 	// The raw submission specifications to analyze.
 	RawSubmissionSpecs []string `json:"submissions"`
 

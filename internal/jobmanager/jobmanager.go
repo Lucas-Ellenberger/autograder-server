@@ -10,7 +10,7 @@ import (
 	"github.com/edulinq/autograder/internal/util"
 )
 
-type Job[InputType any, OutputType any] struct {
+type Job[InputType comparable, OutputType any] struct {
 	JobOptions
 
 	JobOutput[InputType, OutputType]
@@ -30,8 +30,10 @@ type Job[InputType any, OutputType any] struct {
 	WorkFunc func(InputType) (OutputType, int64, error) `json:"-"`
 }
 
-type JobOutput[InputType any, OutputType any] struct {
+type JobOutput[InputType comparable, OutputType any] struct {
 	// A list of errors encountered while running the job.
+	// The index of the error will match the index of the item
+	// that failed in RemainingItems.
 	Errors []error
 
 	// The list of results.
@@ -45,9 +47,6 @@ type JobOutput[InputType any, OutputType any] struct {
 }
 
 type JobOptions struct {
-	// Don't save anything.
-	DryRun bool `json:"dry-run"`
-
 	// Replace any records currently in storage,
 	// and do not retrieve any records (when not waiting for completion).
 	OverwriteRecords bool `json:"overwrite-records"`
@@ -107,6 +106,8 @@ func (this *JobOptions) Validate() error {
 // It supports optional record retrieval, record removal from storage, synchronization, and context cancellation.
 // Given job options, input items, an optional record lookup/removal function, and a work function,
 // Job.Run() processes each item in a parallel pool.
+// If a lock key is provided, Job.Run() will block on that key for the duration of the method.
+// This prevents multiple Job.Run() invocations of the same type from overusing resources or conflicting with each other.
 // Returns the result list, number of remaining items, total run time, and an error.
 // If the context is canceled, returns nil, 0, 0, nil.
 func (this *Job[InputType, OutputType]) Run() (JobOutput[InputType, OutputType], error) {
@@ -188,8 +189,9 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 
 	// TODO: Investigate cache removal.
 	// If we are overwriting records, then remove all the old records.
-	if this.OverwriteRecords && this.RemoveStorageFunc != nil && !this.DryRun {
-		err = this.RemoveStorageFunc(this.WorkItems)
+	if this.OverwriteRecords && this.RemoveStorageFunc != nil {
+		processedItems := getProcessedItems(this.WorkItems, this.RemainingItems)
+		err = this.RemoveStorageFunc(processedItems)
 		if err != nil {
 			return JobOutput[InputType, OutputType]{}, fmt.Errorf("Failed to remove old job cache entries: '%w'.", err)
 		}
@@ -235,4 +237,22 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 	}
 
 	return this.JobOutput, errors.Join(this.Errors...)
+}
+
+func getProcessedItems[InputType comparable](allItems []InputType, remainingItems []InputType) []InputType {
+	seenItems := make(map[InputType]bool, len(remainingItems))
+	for _, item := range remainingItems {
+		seenItems[item] = true
+	}
+
+	results := make([]InputType, 0, len(allItems)-len(remainingItems))
+
+	for _, item := range allItems {
+		_, ok := seenItems[item]
+		if !ok {
+			results = append(results, item)
+		}
+	}
+
+	return results
 }
