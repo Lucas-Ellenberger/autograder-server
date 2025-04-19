@@ -60,6 +60,20 @@ func TestRegradeBase(test *testing.T) {
 			},
 		},
 
+		// Default To Student, Wait For Completion
+		{
+			[]string{},
+			"course-admin",
+			true,
+			"",
+			RegradeResponse{
+				Users: []string{"course-student@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{
+					studentGradingResults["1697406272"].Info.ToHistoryItem(),
+				},
+			},
+		},
+
 		// Admin, Wait For Completion
 		{
 			[]string{"admin"},
@@ -110,6 +124,18 @@ func TestRegradeBase(test *testing.T) {
 			},
 		},
 
+		// Defualt To Student, No Wait
+		{
+			[]string{},
+			"course-grader",
+			false,
+			"",
+			RegradeResponse{
+				Users:   []string{"course-student@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{},
+			},
+		},
+
 		// Grader, No Wait
 		{
 			[]string{"grader"},
@@ -151,20 +177,20 @@ func TestRegradeBase(test *testing.T) {
 				Results: []*model.SubmissionHistoryItem{},
 			},
 		},
+
+		// Unknown Users, no wait
 		{
-			[]string{""},
+			[]string{"ZZZ"},
 			"course-admin",
-			true,
+			false,
 			"",
 			RegradeResponse{
 				Users:   []string{},
 				Results: []*model.SubmissionHistoryItem{},
 			},
 		},
-
-		// Unknown Users, no wait
 		{
-			[]string{"ZZZ"},
+			[]string{""},
 			"course-admin",
 			false,
 			"",

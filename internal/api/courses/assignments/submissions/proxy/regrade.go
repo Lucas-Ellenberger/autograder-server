@@ -26,6 +26,10 @@ type RegradeResponse struct {
 
 // Regrade the most recent submissions for users with the filtered role in the course.
 func HandleRegrade(request *RegradeRequest) (*RegradeResponse, *core.APIError) {
+	if len(request.Emails) == 0 {
+		request.Emails = []string{"student"}
+	}
+
 	users, err := db.ResolveCourseUsers(request.Course, request.Emails)
 	if err != nil {
 		return nil, core.NewInternalError("-635", request, "Unable to resolve course users.")
