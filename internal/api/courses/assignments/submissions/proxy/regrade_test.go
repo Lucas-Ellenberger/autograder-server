@@ -24,105 +24,168 @@ func TestRegradeBase(test *testing.T) {
 	}
 
 	testCases := []struct {
-		role              string
+		emails            []string
 		proxyUser         string
 		waitForCompletion bool
 		expectedLocator   string
 		expected          RegradeResponse
 	}{
-		// Valid regrade submissions
-		// Student, wait for completion
+		// Valid Regrade Submissions
+
+		// Student, Wait For Completion
 		{
-			"student",
+			[]string{"student"},
 			"course-grader",
 			true,
 			"",
 			RegradeResponse{
-				Complete: true,
-				Users:    []string{"course-student@test.edulinq.org"},
-				Results: map[string]*model.SubmissionHistoryItem{
-					"course-student@test.edulinq.org": studentGradingResults["1697406272"].Info.ToHistoryItem(),
+				Users: []string{"course-student@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{
+					studentGradingResults["1697406272"].Info.ToHistoryItem(),
 				},
 			},
 		},
 
-		// Admin, wait for completion
+		// Target Student, Wait For Completion
 		{
-			"admin",
+			[]string{"course-student@test.edulinq.org"},
 			"course-grader",
 			true,
 			"",
 			RegradeResponse{
-				Complete: true,
-				Users:    []string{"course-admin@test.edulinq.org"},
-				Results: map[string]*model.SubmissionHistoryItem{
-					"course-admin@test.edulinq.org": nil,
+				Users: []string{"course-student@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{
+					studentGradingResults["1697406272"].Info.ToHistoryItem(),
 				},
 			},
 		},
 
-		// Student, no wait
+		// Admin, Wait For Completion
 		{
-			"student",
+			[]string{"admin"},
+			"course-grader",
+			true,
+			"",
+			RegradeResponse{
+				Users: []string{"course-admin@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{
+					nil,
+				},
+			},
+		},
+
+		// All, Wait For Completion
+		{
+			[]string{"*"},
+			"course-grader",
+			true,
+			"",
+			RegradeResponse{
+				Users: []string{
+					"course-admin@test.edulinq.org",
+					"course-grader@test.edulinq.org",
+					"course-other@test.edulinq.org",
+					"course-owner@test.edulinq.org",
+					"course-student@test.edulinq.org",
+				},
+				Results: []*model.SubmissionHistoryItem{
+					nil,
+					nil,
+					nil,
+					nil,
+					studentGradingResults["1697406272"].Info.ToHistoryItem(),
+				},
+			},
+		},
+
+		// Student, No Wait
+		{
+			[]string{"student"},
 			"course-grader",
 			false,
 			"",
 			RegradeResponse{
-				Complete: false,
-				Users:    []string{"course-student@test.edulinq.org"},
-				Results:  map[string]*model.SubmissionHistoryItem{},
+				Users:   []string{"course-student@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{},
 			},
 		},
 
-		// Grader, no wait
+		// Grader, No Wait
 		{
-			"grader",
+			[]string{"grader"},
 			"course-grader",
 			false,
 			"",
 			RegradeResponse{
-				Complete: false,
-				Users:    []string{"course-grader@test.edulinq.org"},
-				Results:  map[string]*model.SubmissionHistoryItem{},
+				Users:   []string{"course-grader@test.edulinq.org"},
+				Results: []*model.SubmissionHistoryItem{},
 			},
 		},
 
-		// Invalid regrade submissions
-		// Unknown role, wait
+		// All, No Wait
 		{
-			"ZZZ",
-			"course-admin",
-			true,
-			"-005",
-			RegradeResponse{},
-		},
-		{
+			[]string{"*"},
+			"course-grader",
+			false,
 			"",
-			"course-admin",
-			true,
-			"-005",
-			RegradeResponse{},
+			RegradeResponse{
+				Users: []string{
+					"course-admin@test.edulinq.org",
+					"course-grader@test.edulinq.org",
+					"course-other@test.edulinq.org",
+					"course-owner@test.edulinq.org",
+					"course-student@test.edulinq.org",
+				},
+				Results: []*model.SubmissionHistoryItem{},
+			},
 		},
 
-		// Unknown role, no wait
+		// Unknown Users, Wait
 		{
-			"ZZZ",
+			[]string{"ZZZ"},
+			"course-admin",
+			true,
+			"",
+			RegradeResponse{
+				Users:   []string{},
+				Results: []*model.SubmissionHistoryItem{},
+			},
+		},
+		{
+			[]string{""},
+			"course-admin",
+			true,
+			"",
+			RegradeResponse{
+				Users:   []string{},
+				Results: []*model.SubmissionHistoryItem{},
+			},
+		},
+
+		// Unknown Users, no wait
+		{
+			[]string{"ZZZ"},
 			"course-admin",
 			false,
-			"-005",
-			RegradeResponse{},
+			"",
+			RegradeResponse{
+				Users:   []string{},
+				Results: []*model.SubmissionHistoryItem{},
+			},
 		},
 
-		// Perm errors
+		// Invalid Regrade Submissions
+
+		// Perm Errors
 		{
-			"student",
+			[]string{"student"},
 			"course-student",
 			false,
 			"-020",
 			RegradeResponse{},
 		},
 		{
-			"student",
+			[]string{"student"},
 			"course-other",
 			true,
 			"-020",
@@ -132,7 +195,7 @@ func TestRegradeBase(test *testing.T) {
 
 	for i, testCase := range testCases {
 		fields := map[string]any{
-			"filter-role":         testCase.role,
+			"emails":              testCase.emails,
 			"wait-for-completion": testCase.waitForCompletion,
 		}
 
@@ -151,7 +214,7 @@ func TestRegradeBase(test *testing.T) {
 		}
 
 		if testCase.expectedLocator != "" {
-			test.Errorf("Case %d: Did not get an expected permissions error.", i)
+			test.Errorf("Case %d: Did not get an expected error.", i)
 			continue
 		}
 

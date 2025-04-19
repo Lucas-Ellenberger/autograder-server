@@ -6,6 +6,7 @@ import (
 
 	"github.com/edulinq/autograder/internal/db"
 	"github.com/edulinq/autograder/internal/docker"
+	"github.com/edulinq/autograder/internal/jobmanager"
 	"github.com/edulinq/autograder/internal/model"
 	"github.com/edulinq/autograder/internal/util"
 )
@@ -23,16 +24,14 @@ func TestRegradeBase(test *testing.T) {
 	testCases := []struct {
 		users             []string
 		waitForCompletion bool
-		numLeft           int
-		results           map[string]*model.SubmissionHistoryItem
+		results           []*model.SubmissionHistoryItem
 	}{
 		// User with submission, wait
 		{
 			[]string{"course-student@test.edulinq.org"},
 			true,
-			0,
-			map[string]*model.SubmissionHistoryItem{
-				"course-student@test.edulinq.org": studentGradingResults["1697406272"].Info.ToHistoryItem(),
+			[]*model.SubmissionHistoryItem{
+				studentGradingResults["1697406272"].Info.ToHistoryItem(),
 			},
 		},
 
@@ -40,17 +39,15 @@ func TestRegradeBase(test *testing.T) {
 		{
 			[]string{},
 			true,
-			0,
-			map[string]*model.SubmissionHistoryItem{},
+			[]*model.SubmissionHistoryItem{},
 		},
 
 		// Empty submissions, wait
 		{
 			[]string{"course-admin@test.edulinq.org"},
 			true,
-			0,
-			map[string]*model.SubmissionHistoryItem{
-				"course-admin@test.edulinq.org": nil,
+			[]*model.SubmissionHistoryItem{
+				nil,
 			},
 		},
 
@@ -58,24 +55,21 @@ func TestRegradeBase(test *testing.T) {
 		{
 			[]string{"course-student@test.edulinq.org"},
 			false,
-			1,
-			map[string]*model.SubmissionHistoryItem{},
+			[]*model.SubmissionHistoryItem{},
 		},
 
 		// Empty users, no wait
 		{
 			[]string{},
 			false,
-			0,
-			map[string]*model.SubmissionHistoryItem{},
+			[]*model.SubmissionHistoryItem{},
 		},
 
 		// Empty submission, no wait
 		{
 			[]string{"course-admin@test.edulinq.org"},
 			false,
-			1,
-			map[string]*model.SubmissionHistoryItem{},
+			[]*model.SubmissionHistoryItem{},
 		},
 	}
 
@@ -85,20 +79,17 @@ func TestRegradeBase(test *testing.T) {
 		db.ResetForTesting()
 
 		options := RegradeOptions{
-			Options:           GetDefaultGradeOptions(),
-			Users:             testCase.users,
-			Assignment:        assignment,
-			WaitForCompletion: testCase.waitForCompletion,
+			JobOptions: jobmanager.JobOptions{
+				WaitForCompletion: testCase.waitForCompletion,
+			},
+			Options:    GetDefaultGradeOptions(),
+			Users:      testCase.users,
+			Assignment: assignment,
 		}
 
-		results, numLeft, err := RegradeSubmissions(options)
+		results, err := RegradeSubmissions(options)
 		if err != nil {
 			test.Errorf("Case %d: Failed to regrade submissions: '%v'.", i, err)
-			continue
-		}
-
-		if testCase.numLeft != numLeft {
-			test.Errorf("Case %d: Unexpected number of regrades remaining. Expected: '%d', actual: '%d'.", i, testCase.numLeft, numLeft)
 			continue
 		}
 

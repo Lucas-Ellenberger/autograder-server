@@ -74,38 +74,39 @@ func GetTestSubmissions(baseDir string, useDocker bool) ([]*TestSubmissionInfo, 
 	return testSubmissions, nil
 }
 
-func CheckAndClearIDs(test *testing.T, i int, expectedResults map[string]*model.SubmissionHistoryItem, actualResults map[string]*model.SubmissionHistoryItem) bool {
-	for user, expected := range expectedResults {
-		actual, ok := actualResults[user]
-		if !ok {
-			test.Errorf("Case %d: Unable to find result for user '%s'. Expected: '%v'.",
-				i, user, util.MustToJSONIndent(expected))
-			return true
-		}
+func CheckAndClearIDs(test *testing.T, testNum int, expectedResults []*model.SubmissionHistoryItem, actualResults []*model.SubmissionHistoryItem) bool {
+	if len(expectedResults) != len(actualResults) {
+		test.Errorf("Case %d: Unexpected grading result. Expected: '%s', actual: '%s'.",
+			testNum, util.MustToJSONIndent(expectedResults), util.MustToJSONIndent(actualResults))
+		return true
+	}
+
+	for i, expected := range expectedResults {
+		actual := actualResults[i]
 
 		if (expected == nil) && (actual == nil) {
-			return false
+			continue
 		}
 
 		if expected == nil {
-			test.Errorf("Case %d: Unexpected result for user '%s'. Expected: '<nil>', actual: '%s'.",
-				i, user, util.MustToJSONIndent(actual))
+			test.Errorf("Case %d: Unexpected result at index '%d'. Expected: '<nil>', actual: '%s'.",
+				testNum, i, util.MustToJSONIndent(actual))
 			return true
 		}
 
 		if actual == nil {
-			test.Errorf("Case %d: Unexpected result for user '%s'. Expected: '%s', actual: '<nil>'.",
-				i, user, util.MustToJSONIndent(expected))
+			test.Errorf("Case %d: Unexpected result for index '%d'. Expected: '%s', actual: '<nil>'.",
+				testNum, i, util.MustToJSONIndent(expected))
 			return true
 		}
 
 		if expected.ShortID == actual.ShortID {
-			test.Errorf("Case %d: Regrade submission has the same short ID as the previous submission: '%s'.", i, expected.ShortID)
+			test.Errorf("Case %d: Regrade submission has the same short ID as the previous submission: '%s'.", testNum, expected.ShortID)
 			return true
 		}
 
 		if expected.ID == actual.ID {
-			test.Errorf("Case %d: Regrade submission has the same ID as the previous submission: '%s'.", i, expected.ID)
+			test.Errorf("Case %d: Regrade submission has the same ID as the previous submission: '%s'.", testNum, expected.ID)
 			return true
 		}
 
