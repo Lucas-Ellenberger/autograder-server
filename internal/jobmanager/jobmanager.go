@@ -28,6 +28,9 @@ type Job[InputType comparable, OutputType any] struct {
 	// A function to transform work items into results.
 	// Returns a result, the time of computation, and an error.
 	WorkFunc func(InputType) (OutputType, int64, error) `json:"-"`
+
+	// An internal channel to signal the job is complete.
+	done chan struct{} `json:"-"`
 }
 
 type JobOutput[InputType comparable, OutputType any] struct {
@@ -44,6 +47,9 @@ type JobOutput[InputType comparable, OutputType any] struct {
 
 	// The total computation time.
 	RunTime int64
+
+	// Signals the job is complete.
+	Done <-chan struct{}
 }
 
 type JobOptions struct {
@@ -128,8 +134,13 @@ func (this *Job[InputType, OutputType]) Run() (JobOutput[InputType, OutputType],
 		}
 	}
 
+	if this.done == nil {
+		this.done = make(chan struct{})
+		this.Done = this.done
+	}
+
 	if this.WaitForCompletion {
-		this.JobOutput, err = this.run()
+		err = this.run()
 		if err != nil {
 			return JobOutput[InputType, OutputType]{}, err
 		}
@@ -138,11 +149,23 @@ func (this *Job[InputType, OutputType]) Run() (JobOutput[InputType, OutputType],
 		if this.Context.Err() != nil {
 			return JobOutput[InputType, OutputType]{}, nil
 		}
+
+		select {
+		case <-this.done:
+		default:
+			close(this.done)
+		}
 	} else {
 		go func() {
-			_, err = this.run()
+			err = this.run()
 			if err != nil {
 				log.Error("Failure while running asynchronous job.")
+			}
+
+			select {
+			case <-this.done:
+			default:
+				close(this.done)
 			}
 		}()
 	}
@@ -150,14 +173,14 @@ func (this *Job[InputType, OutputType]) Run() (JobOutput[InputType, OutputType],
 	return this.JobOutput, nil
 }
 
-func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType], error) {
+func (this *Job[InputType, OutputType]) run() error {
 	err := this.Validate()
 	if err != nil {
-		return JobOutput[InputType, OutputType]{}, fmt.Errorf("Failed to validate job: '%v'.", err)
+		return fmt.Errorf("Failed to validate job: '%v'.", err)
 	}
 
 	if len(this.RemainingItems) == 0 {
-		return this.JobOutput, nil
+		return nil
 	}
 
 	noLockWait := true
@@ -168,7 +191,7 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 
 	// The context has been canceled while waiting for a lock, abandon this job.
 	if this.Context.Err() != nil {
-		return JobOutput[InputType, OutputType]{}, nil
+		return nil
 	}
 
 	// If we had to wait for the lock, then check again for stored records.
@@ -176,7 +199,7 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 		var partialResults []OutputType = nil
 		partialResults, this.RemainingItems, err = this.RetrieveFunc(this.RemainingItems)
 		if err != nil {
-			return JobOutput[InputType, OutputType]{}, fmt.Errorf("Failed to re-check record storage before run: '%w'.", err)
+			return fmt.Errorf("Failed to re-check record storage before run: '%w'.", err)
 		}
 
 		// Collect the partial records from storage.
@@ -184,16 +207,15 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 	}
 
 	if len(this.RemainingItems) == 0 {
-		return this.JobOutput, nil
+		return nil
 	}
 
-	// TODO: Investigate cache removal.
 	// If we are overwriting records, then remove all the old records.
 	if this.OverwriteRecords && this.RemoveStorageFunc != nil {
 		processedItems := getProcessedItems(this.WorkItems, this.RemainingItems)
 		err = this.RemoveStorageFunc(processedItems)
 		if err != nil {
-			return JobOutput[InputType, OutputType]{}, fmt.Errorf("Failed to remove old job cache entries: '%w'.", err)
+			return fmt.Errorf("Failed to remove old job cache entries: '%w'.", err)
 		}
 	}
 
@@ -214,12 +236,12 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 	})
 
 	if err != nil {
-		return JobOutput[InputType, OutputType]{}, fmt.Errorf("Failed to run job in a parallel pool: '%w'.", err)
+		return fmt.Errorf("Failed to run job in a parallel pool: '%w'.", err)
 	}
 
 	// If the job was canceled, exit right away.
 	if this.Context.Err() != nil {
-		return JobOutput[InputType, OutputType]{}, nil
+		return nil
 	}
 
 	this.RunTime = 0
@@ -236,7 +258,7 @@ func (this *Job[InputType, OutputType]) run() (JobOutput[InputType, OutputType],
 		}
 	}
 
-	return this.JobOutput, errors.Join(this.Errors...)
+	return errors.Join(this.Errors...)
 }
 
 func getProcessedItems[InputType comparable](allItems []InputType, remainingItems []InputType) []InputType {

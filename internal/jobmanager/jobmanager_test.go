@@ -711,6 +711,9 @@ func TestRunJobBase(test *testing.T) {
 			continue
 		}
 
+		// Set the done channel to pass the equality check.
+		testCase.initialOutput.Done = output.Done
+
 		if !reflect.DeepEqual(output, testCase.initialOutput) {
 			test.Errorf("Case %d: Unexpected initial results. Expected: '%s', actual: '%s'.",
 				i, util.MustToJSONIndent(testCase.initialOutput), util.MustToJSONIndent(output))
@@ -736,6 +739,9 @@ func TestRunJobBase(test *testing.T) {
 			test.Errorf("Case %d: Did not get expected final error: '%s'.", i, testCase.finalErrorSubstring)
 			continue
 		}
+
+		// Set the done channel to pass the equality check.
+		testCase.finalOutput.Done = output.Done
 
 		if !reflect.DeepEqual(output, testCase.finalOutput) {
 			test.Errorf("Case %d: Unexpected final results. Expected: '%s', actual: '%s'.",
@@ -764,6 +770,8 @@ func TestRunJobBase(test *testing.T) {
 					ResultItems:    []int{},
 					RemainingItems: input,
 					RunTime:        int64(0),
+					// Set the done channel to pass the equality check.
+					Done: output.Done,
 				}
 
 				if !reflect.DeepEqual(output, expected) {
@@ -830,6 +838,8 @@ func TestRunJobCancel(test *testing.T) {
 			util.MustToJSONIndent(JobOutput[string, int]{}), util.MustToJSONIndent(output))
 	}
 }
+
+// TODO: Add a test case to test done channel behavior (don't wait for completion but monitor the channel.)
 
 func resetStorage() map[string]int {
 	return map[string]int{
