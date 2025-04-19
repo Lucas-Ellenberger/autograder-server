@@ -839,7 +839,45 @@ func TestRunJobCancel(test *testing.T) {
 	}
 }
 
-// TODO: Add a test case to test done channel behavior (don't wait for completion but monitor the channel.)
+func TestRunJobChannel(test *testing.T) {
+	input := []string{
+		"A",
+		"BB",
+		"CCC",
+	}
+
+	job := &Job[string, int]{
+		WorkItems: input,
+		WorkFunc:  workFunc,
+		JobOptions: JobOptions{
+			WaitForCompletion: false,
+			PoolSize:          testPoolSize,
+			LockKey:           testLockKey,
+		},
+	}
+
+	output, err := job.Run()
+	if err != nil {
+		test.Fatalf("Failed to run job: '%v'.", err)
+	}
+
+	// Wait for the worker to signal the job is done.
+	<-output.Done
+
+	expected := JobOutput[string, int]{
+		ResultItems:    []int{1, 2, 3},
+		RemainingItems: []string{},
+		RunTime:        int64(len(input)),
+		Done:           job.Done,
+	}
+
+	// Must check the job object itself for updates.
+	// The output variable is returned before the work is done.
+	if !reflect.DeepEqual(job.JobOutput, expected) {
+		test.Fatalf("Unexpected output. Expected: '%s', actual: '%s'.",
+			util.MustToJSONIndent(expected), util.MustToJSONIndent(job.JobOutput))
+	}
+}
 
 func resetStorage() map[string]int {
 	return map[string]int{

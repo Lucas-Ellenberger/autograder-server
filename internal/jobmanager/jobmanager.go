@@ -49,7 +49,7 @@ type JobOutput[InputType comparable, OutputType any] struct {
 	RunTime int64
 
 	// Signals the job is complete.
-	Done <-chan struct{}
+	Done <-chan struct{} `json:"-"`
 }
 
 type JobOptions struct {
