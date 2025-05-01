@@ -1,5 +1,7 @@
 # Autograder Server
 
+# GPG TEST
+
 [![Build Status](https://github.com/edulinq/autograder-server/actions/workflows/main.yml/badge.svg)](https://github.com/edulinq/autograder-server/actions/workflows/main.yml)
 
 A server for automatically grading programming assignments in real-time.
