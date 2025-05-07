@@ -6,105 +6,145 @@ import (
 	"sync"
 )
 
+// The result of running a map function in parallel pool.
+// Always call IsDone() before accessing any results to avoid concurrency issues.
+type PoolResult[InputType comparable, OutputType any] struct {
+	// The results of the parallel pool.
+	Results map[InputType]OutputType
+
+	// A map of work errors using the item for item-level errors.
+	WorkErrors map[InputType]error
+
+	// Signals that the parallel pool was canceled during execution.
+	Canceled bool
+
+	// An internal done channel to signal the result can be accessed.
+	done chan any
+}
+
+func (this PoolResult[InputType, OutputType]) IsDone() {
+	<-this.done
+}
+
 // Do a map function (one result for one input) with a parallel pool of workers.
 // Unless there is a critical error (the final return value) or cancellation,
-// the output will have the same length as and index-match the input, but will have an empty value if there is an error.
-// A cancellation will return (nil, nil, nil).
-// Consult the returned map of errors using the item's index to check for item-level errors.
+// every input will either be in Results or WorkErrors.
+// A cancellation will stop new work from starting but complete in progress work asynchronously.
+// The partial results from a cancellation are available after IsDone() returns.
+// Consult the returned map of errors using the item to check for item-level errors.
 // The underlying collection of input work items must not be modified as this function is running.
-func RunParallelPoolMap[InputType any, OutputType any](poolSize int, workItems []InputType, ctx context.Context, workFunc func(InputType) (OutputType, error)) ([]OutputType, map[int]error, error) {
-	if poolSize <= 0 {
-		return nil, nil, fmt.Errorf("Pool size must be positive, got %d.", poolSize)
+func RunParallelPoolMap[InputType comparable, OutputType any](poolSize int, workItems []InputType, ctx context.Context, workFunc func(InputType) (OutputType, error)) (PoolResult[InputType, OutputType], error) {
+	doneChan := make(chan any)
+
+	output := PoolResult[InputType, OutputType]{
+		Results:    make(map[InputType]OutputType, len(workItems)),
+		WorkErrors: make(map[InputType]error, 0),
+		done:       doneChan,
 	}
 
-	type WorkItem struct {
-		Index int
-		Item  InputType
+	if poolSize <= 0 {
+		return output, fmt.Errorf("Pool size must be positive, got %d.", poolSize)
 	}
 
 	type ResultItem struct {
-		Index int
-		Item  OutputType
-		Error error
+		Input  InputType
+		Result OutputType
+		Error  error
 	}
 
-	results := make([]OutputType, len(workItems))
-	workErrors := make(map[int]error)
-
 	resultQueue := make(chan ResultItem, poolSize)
-	workQueue := make(chan WorkItem, poolSize)
-	doneChan := make(chan bool, poolSize)
-	exitWaitGroup := sync.WaitGroup{}
+	workQueue := make(chan InputType, poolSize)
+	doneCollectingChan := make(chan bool, poolSize)
+	workerExitWaitGroup := sync.WaitGroup{}
 
 	// Load work.
 	go func() {
-		for i, item := range workItems {
+		for _, item := range workItems {
 			// Either send a work item, or cancel.
 			select {
 			case <-ctx.Done():
 				return
-			case workQueue <- WorkItem{i, item}:
+			case workQueue <- item:
 				// Item was already sent on the chan, do nothing here.
 			}
 		}
 	}()
 
+	workerExitWaitGroupChan := make(chan any)
+
 	// Collect results.
 	go func() {
+		defer func() {
+			// Got all the results (or canceled), signal completion to all the workers.
+			for i := 0; i < (poolSize); i++ {
+				doneCollectingChan <- true
+			}
+
+			close(doneChan)
+		}()
+
 		for i := 0; i < len(workItems); i++ {
 			select {
-			case <-ctx.Done():
-				return
+			case <-workerExitWaitGroupChan:
+				// All workers completed, drain remaining results.
+				// If the context was canceled, the number of results may be less than the number of work items.
+				for {
+					select {
+					case resultItem := <-resultQueue:
+						output.Results[resultItem.Input] = resultItem.Result
+						if resultItem.Error != nil {
+							output.WorkErrors[resultItem.Input] = resultItem.Error
+						}
+					default:
+						return
+					}
+				}
 			case resultItem := <-resultQueue:
-				results[resultItem.Index] = resultItem.Item
+				output.Results[resultItem.Input] = resultItem.Result
 				if resultItem.Error != nil {
-					workErrors[resultItem.Index] = resultItem.Error
+					output.WorkErrors[resultItem.Input] = resultItem.Error
 				}
 			}
-		}
-
-		// Got all the results (or canceled), signal completion to all the workers.
-		for i := 0; i < (poolSize); i++ {
-			doneChan <- true
 		}
 	}()
 
 	// Dispatch workers.
-	exitWaitGroup.Add(poolSize)
+	workerExitWaitGroup.Add(poolSize)
 	for i := 0; i < poolSize; i++ {
 		go func() {
-			defer exitWaitGroup.Done()
+			defer workerExitWaitGroup.Done()
 
 			for {
 				select {
 				case <-ctx.Done():
 					return
-				case workItem := <-workQueue:
-					result, err := workFunc(workItem.Item)
-					resultQueue <- ResultItem{workItem.Index, result, err}
-				case <-doneChan:
+				case <-doneCollectingChan:
 					return
+				case workItem := <-workQueue:
+					result, err := workFunc(workItem)
+					resultQueue <- ResultItem{workItem, result, err}
 				}
 			}
 		}()
 	}
 
-	// Wait on the wait group in the background so we can select between it and the context.
-	// Technically we could wait on the done channel, but this will ensure that all workers have exited.
-	exitWaitGroupChan := make(chan bool, 1)
+	// Wait on the done chan in the background so we can select between it and the context.
+	// Technically we could wait on the worker wait group, but this will ensure that all results are collected.
 	go func() {
-		exitWaitGroup.Wait()
-		exitWaitGroupChan <- true
+		workerExitWaitGroup.Wait()
+		close(workerExitWaitGroupChan)
 	}()
 
 	// Wait for either completion or cancellation.
 	select {
 	case <-ctx.Done():
-		// The context was canceled, return nothing.
-		return nil, nil, nil
-	case <-exitWaitGroupChan:
+		// The context was canceled, return partial results.
+		output.Canceled = true
+
+		return output, nil
+	case <-doneChan:
 		// Normal Completion
 	}
 
-	return results, workErrors, nil
+	return output, nil
 }

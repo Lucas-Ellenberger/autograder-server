@@ -29,10 +29,14 @@ func TestRunParallelPoolMapBase(test *testing.T) {
 		"CCC",
 	}
 
-	expected := []int{
-		1,
-		2,
-		3,
+	expected := PoolResult[string, int]{
+		Results: map[string]int{
+			"A":   1,
+			"BB":  2,
+			"CCC": 3,
+		},
+		WorkErrors: map[string]error{},
+		Canceled:   false,
 	}
 
 	workFunc := func(input string) (int, error) {
@@ -43,7 +47,7 @@ func TestRunParallelPoolMapBase(test *testing.T) {
 		// Count the number of active threads before running.
 		startThreadCount := runtime.NumGoroutine()
 
-		actual, workErrors, err := RunParallelPoolMap(testCase.numThreads, input, context.Background(), workFunc)
+		output, err := RunParallelPoolMap(testCase.numThreads, input, context.Background(), workFunc)
 		if err != nil {
 			if !testCase.hasError {
 				test.Errorf("Case %d: Got an unexpected error: '%v'.", i, err)
@@ -57,13 +61,15 @@ func TestRunParallelPoolMapBase(test *testing.T) {
 			continue
 		}
 
-		if len(workErrors) != 0 {
-			test.Errorf("Case %d: Unexpected work errors: '%s'.", i, MustToJSONIndent(workErrors))
-			continue
-		}
+		output.IsDone()
 
-		if !reflect.DeepEqual(expected, actual) {
-			test.Errorf("Case %d: Result not as expected. Expected: '%s', Actual: '%s'.", i, MustToJSONIndent(expected), MustToJSONIndent(actual))
+		// Clear output done channel for comparison check.
+		output.done = nil
+
+		if !reflect.DeepEqual(expected, output) {
+			test.Errorf("Case %d: Result not as expected. Expected: '%s', actual: '%s'.",
+				i, MustToJSONIndent(expected), MustToJSONIndent(output))
+			continue
 		}
 
 		// Check for the thread count last (this gives the workers a small bit of extra time to exit).
@@ -71,7 +77,8 @@ func TestRunParallelPoolMapBase(test *testing.T) {
 		time.Sleep(25 * time.Millisecond)
 		endThreadCount := runtime.NumGoroutine()
 		if startThreadCount < endThreadCount {
-			test.Errorf("Case %d: Ended with more threads than we started with. Start: %d, End: %d.", i, startThreadCount, endThreadCount)
+			test.Errorf("Case %d: Ended with more threads than we started with. Start: %d, End: %d.",
+				i, startThreadCount, endThreadCount)
 			continue
 		}
 	}
@@ -95,18 +102,27 @@ func TestRunParallelPoolMapCancel(test *testing.T) {
 	}
 
 	for i, testCase := range testCases {
+		// Count the number of active threads before running.
+		startThreadCount := runtime.NumGoroutine()
+
+		// A channel to know which jobs started.
+		startedChan := make(chan string, len(input))
+
 		// Block until the first worker has started.
 		workWaitGroup := sync.WaitGroup{}
 		workWaitGroup.Add(1)
 
 		workFunc := func(input string) (int, error) {
-			// Signal on the first piece of work that we can make sure the workers have started up before we cancel.
+			startedChan <- input
+
+			// Signal on the first piece of work so that we can make sure the workers have started up before we cancel.
 			if input == "A" {
 				workWaitGroup.Done()
+				time.Sleep(time.Duration(5) * time.Millisecond)
+				return len(input), nil
 			}
 
-			// Sleep for a really long time (for a test).
-			time.Sleep(1 * time.Hour)
+			time.Sleep(time.Duration(5) * time.Millisecond)
 
 			return len(input), nil
 		}
@@ -119,19 +135,44 @@ func TestRunParallelPoolMapCancel(test *testing.T) {
 			cancelFunc()
 		}()
 
-		actual, workErrors, err := RunParallelPoolMap(testCase.numThreads, input, ctx, workFunc)
+		output, err := RunParallelPoolMap(testCase.numThreads, input, ctx, workFunc)
 		if err != nil {
 			test.Errorf("Case %d: Got an unexpected error: '%v'.", i, err)
 			continue
 		}
 
-		if actual != nil {
-			test.Errorf("Case %d: Got a result when it should have been nil.", i)
+		output.IsDone()
+
+		close(startedChan)
+
+		// Workers race to start before the cancellation.
+		// Ensure all started work is completed.
+		expectedResults := map[string]int{}
+		for input := range startedChan {
+			expectedResults[input] = len(input)
+		}
+
+		expected := PoolResult[string, int]{
+			Results:    expectedResults,
+			WorkErrors: map[string]error{},
+			Canceled:   true,
+		}
+
+		// Clear output done channel for comparison check.
+		output.done = nil
+
+		if !reflect.DeepEqual(output, expected) {
+			test.Errorf("Case %d: Unexpected results. Expected: '%v', actual: '%v'.",
+				i, MustToJSONIndent(expected), MustToJSONIndent(output))
 			continue
 		}
 
-		if workErrors != nil {
-			test.Errorf("Case %d: Got errors when they should have been nil.", i)
+		// Check for the thread count last (this gives the workers a small bit of extra time to exit).
+		// Note that there may be other tests with stray threads, so we are allowed to have less than when we started.
+		endThreadCount := runtime.NumGoroutine()
+		if startThreadCount < endThreadCount {
+			test.Errorf("Case %d: Ended with more threads than we started with. Start: %d, End: %d.",
+				i, startThreadCount, endThreadCount)
 			continue
 		}
 	}
