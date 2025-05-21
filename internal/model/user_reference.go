@@ -129,3 +129,21 @@ func (this *CourseUserReference) ToServerUserReference() *ServerUserReference {
 		},
 	}
 }
+
+func ServerUserReferenceInputsToStrings(references []ServerUserReferenceInput) []string {
+	results := make([]string, 0, len(references))
+	for i, reference := range references {
+		results[i] = string(reference)
+	}
+
+	return results
+}
+
+func CourseUserReferenceInputsToStrings(references []CourseUserReferenceInput) []string {
+	results := make([]string, 0, len(references))
+	for i, reference := range references {
+		results[i] = string(reference)
+	}
+
+	return results
+}

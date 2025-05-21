@@ -20,7 +20,7 @@ func RunCourseReportTask(task *model.FullScheduledTask) error {
 		return fmt.Errorf("Unable to find course '%s'.", task.CourseID)
 	}
 
-	to, err := model.GetTaskOptionAsType(&task.UserTaskInfo, "to", []string{})
+	to, err := model.GetTaskOptionAsType(&task.UserTaskInfo, "to", []model.CourseUserReferenceInput{})
 	if err != nil {
 		return fmt.Errorf("Unable to get recipients: '%w'.", err)
 	}
@@ -37,12 +37,12 @@ func RunCourseReportTask(task *model.FullScheduledTask) error {
 
 	subject := fmt.Sprintf("Autograder Scoring Report for %s", course.GetName())
 
-	to, err = db.ResolveCourseUsers(course, to)
+	emailTo, err = db.ResolveCourseUsers(course, to)
 	if err != nil {
 		return fmt.Errorf("Failed to resolve users for course '%s': '%w'.", course.GetID(), err)
 	}
 
-	err = email.Send(to, subject, html, true)
+	err = email.Send(emailTo, subject, html, true)
 	if err != nil {
 		return fmt.Errorf("Failed to send scoring report for course '%s': '%w'.", course.GetID(), err)
 	}
