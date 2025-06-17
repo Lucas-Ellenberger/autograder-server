@@ -64,16 +64,16 @@ func GetAllTypeDescriptionsFromPackage(packagePath string) (map[string]string, e
 	return descriptions, nil
 }
 
-func GetFieldDescriptionsFromType(customType reflect.Type) (map[string]string, error) {
+func GetDescriptionsFromType(customType reflect.Type) (string, map[string]string, error) {
 	if customType == nil {
-		return nil, nil
+		return "", nil, nil
 	}
 
 	dirPath := GetDirPathFromCustomPackagePath(customType.PkgPath())
 
 	filePaths, err := FindFiles("", dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to find file paths for the package path '%s': '%v'.", customType.PkgPath(), err)
+		return "", nil, fmt.Errorf("Unable to find file paths for the package path '%s': '%v'.", customType.PkgPath(), err)
 	}
 
 	for _, path := range filePaths {
@@ -88,12 +88,40 @@ func GetFieldDescriptionsFromType(customType reflect.Type) (map[string]string, e
 		fileSet := token.NewFileSet()
 		node, err := parser.ParseFile(fileSet, path, nil, parser.ParseComments)
 		if err != nil {
-			return nil, fmt.Errorf("Error while parsing file to get field descriptions from type: '%v'.", err)
+			return "", nil, fmt.Errorf("Error while parsing file to get field descriptions from type: '%v'.", err)
 		}
 
 		for _, decl := range node.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok {
+				continue
+			}
+
+			if genDecl.Tok == token.VAR {
+				// Range over specs TODO:
+				valueSpec, ok := genDecl.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+
+				// Get the description from alias types.
+				for _, name := range valueSpec.Names {
+					if name == nil {
+						continue
+					}
+
+					if name != customType.Name() {
+						continue
+					}
+
+					description := ""
+					if valueSpec.Doc != nil {
+						description = strings.TrimSpace(valueSpec.Doc.Text())
+					}
+
+					return description, nil, nil
+				}
+
 				continue
 			}
 
@@ -115,19 +143,24 @@ func GetFieldDescriptionsFromType(customType reflect.Type) (map[string]string, e
 					continue
 				}
 
-				structType, ok := typeSpec.Type.(*ast.StructType)
-				if !ok {
-					return nil, fmt.Errorf("Type '%s' must be a struct type.", customType.Name())
+				description := ""
+				if typeSpec.Doc != nil {
+					description = strings.TrimSpace(typeSpec.Doc.Text())
 				}
 
-				descriptions := getFieldDescriptionsFromStructType(structType)
+				fieldDescriptions := make(map[string]string, 0)
 
-				return descriptions, nil
+				structType, ok := typeSpec.Type.(*ast.StructType)
+				if ok {
+					fieldDescriptions = getFieldDescriptionsFromStructType(structType)
+				}
+
+				return description, fieldDescriptions, nil
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("Unable to find the type declaration for '%s' in the package path: '%s'.", customType.Name(), customType.PkgPath())
+	return "", nil, fmt.Errorf("Unable to find the type declaration for '%s' in the package path: '%s'.", customType.Name(), customType.PkgPath())
 }
 
 func getDescriptionFromType(filePaths []string) (map[string]string, error) {

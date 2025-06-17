@@ -326,6 +326,14 @@ func DescribeType(customType reflect.Type, addType bool, info TypeInfoCache) (Fu
 		return typeDescription, originalTypeID, info, nil
 	}
 
+	structFieldDescriptions := make(map[string]string, 0)
+	if customType.PkgPath() != "" {
+		typeDescription.Description, structFieldDescriptions, err = util.GetDescriptionsFromType(customType)
+		if err != nil {
+			return FullTypeDescription{}, "", TypeInfoCache{}, err
+		}
+	}
+
 	switch customType.Kind() {
 	case reflect.Array, reflect.Slice:
 		_, elemTypeID, _, err := DescribeType(customType.Elem(), true, info)
@@ -351,7 +359,7 @@ func DescribeType(customType reflect.Type, addType bool, info TypeInfoCache) (Fu
 		typeDescription.ValueType = elemTypeID
 	case reflect.Struct:
 		typeDescription.Category = StructType
-		typeDescription.Fields, err = describeStructFields(customType, info)
+		typeDescription.Fields, err = describeStructFields(customType, structFieldDescriptions, info)
 		if err != nil {
 			return FullTypeDescription{}, "", TypeInfoCache{}, err
 		}
@@ -384,13 +392,8 @@ func DescribeType(customType reflect.Type, addType bool, info TypeInfoCache) (Fu
 	return typeDescription, originalTypeID, info, nil
 }
 
-func describeStructFields(customType reflect.Type, info TypeInfoCache) ([]FieldDescription, error) {
+func describeStructFields(customType reflect.Type, fieldNameDescriptions map[string]string, info TypeInfoCache) ([]FieldDescription, error) {
 	fieldDescriptions := make([]FieldDescription, 0)
-
-	fieldNameDescriptions, err := util.GetFieldDescriptionsFromType(customType)
-	if err != nil {
-		return nil, err
-	}
 
 	for i := 0; i < customType.NumField(); i++ {
 		field := customType.Field(i)
