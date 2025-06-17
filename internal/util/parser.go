@@ -99,27 +99,29 @@ func GetDescriptionsFromType(customType reflect.Type) (string, map[string]string
 
 			if genDecl.Tok == token.VAR {
 				// Range over specs TODO:
-				valueSpec, ok := genDecl.(*ast.ValueSpec)
-				if !ok {
-					continue
-				}
-
-				// Get the description from alias types.
-				for _, name := range valueSpec.Names {
-					if name == nil {
+				for _, spec := range genDecl.Specs {
+					valueSpec, ok := spec.(*ast.ValueSpec)
+					if !ok {
 						continue
 					}
 
-					if name != customType.Name() {
-						continue
-					}
+					// Get the description from alias types.
+					for _, name := range valueSpec.Names {
+						if name == nil {
+							continue
+						}
 
-					description := ""
-					if valueSpec.Doc != nil {
-						description = strings.TrimSpace(valueSpec.Doc.Text())
-					}
+						if name.Name != customType.Name() {
+							continue
+						}
 
-					return description, nil, nil
+						description := ""
+						if valueSpec.Doc != nil {
+							description = strings.TrimSpace(valueSpec.Doc.Text())
+						}
+
+						return description, nil, nil
+					}
 				}
 
 				continue
